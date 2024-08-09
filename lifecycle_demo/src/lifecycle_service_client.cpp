@@ -34,6 +34,8 @@ public:
         auto future_result = client_get_state_->async_send_request(get_state_req);
         if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future_result) == 
                                                         rclcpp::FutureReturnCode::SUCCESS) {
+            // future_result 只能被调用一次，调用后会发生值转移，再次调用属于未定义行为
+            // 因此这里缓存了 future_result 的值，免去二次调用
             auto tmp_result = future_result.get();
             RCLCPP_INFO(this->get_logger(), "node [%s] in state: %s", lifecycle_node.c_str(), 
                                                     tmp_result->current_state.label.c_str());
