@@ -18,6 +18,10 @@ public:
     }
 
     void init() {
+        // client_get_state_topic 为 lifecycle_talker/get_state
+        // client_change_state_topic 为 lifecycle_talker/change_state
+        // 上游 lifecycle 节点名为 lifecycle_talker，因此他一定会附赠 lifecycle_talker/get_state 和 lifecycle_talker/change_state service
+        // 触发器通过这两个 service ，可以驱动 lifecycle_talker 节点的状态变化
         client_get_state_ = this->create_client<lifecycle_msgs::srv::GetState>(client_get_state_topic);
         client_change_state_ = this->create_client<lifecycle_msgs::srv::ChangeState>(client_change_state_topic);
     }
@@ -28,6 +32,7 @@ public:
         
         if (false == client_get_state_->wait_for_service(timeout)) {
             RCLCPP_ERROR(this->get_logger(), "service %s is not available", client_get_state_->get_service_name());
+            // PRIMARY_STATE_UNKNOWN 为 0，表示未知状态
             return lifecycle_msgs::msg::State::PRIMARY_STATE_UNKNOWN;
         }
 
@@ -77,13 +82,16 @@ private:
     std::shared_ptr<rclcpp::Client<lifecycle_msgs::srv::ChangeState>> client_change_state_;
 };
 
+// 按照 lifecycle node 的状态转换顺序，
+// 依次触发 configure, activate, deactivate, activate, deactivate, cleanup, shutdown 状态转换
 void trigger_change(std::shared_ptr<LifecycleServiceClient>& lc_client) {
     rclcpp::WallRate time_between_state_change(0.2);   // 0.2hz
     
     using Transition = lifecycle_msgs::msg::Transition;
     using State = lifecycle_msgs::msg::State;
 
-    // configure
+    // configure 状态转换
+    // 完成后，lifecycle_talker 节点将从 unconfigured 状态转换到 inactive 状态
     {
         if (false == lc_client->change_state(Transition::TRANSITION_CONFIGURE)) {
             RCLCPP_ERROR(lc_client->get_logger(), "failed to trigger state: configure");
@@ -96,7 +104,8 @@ void trigger_change(std::shared_ptr<LifecycleServiceClient>& lc_client) {
         }
     }
 
-    // activate
+    // activate 状态转换
+    // 完成后，lifecycle_talker 节点将从 inactive 状态转换到 active 状态
     {
         time_between_state_change.sleep();
         if (false == rclcpp::ok()) {
@@ -112,7 +121,8 @@ void trigger_change(std::shared_ptr<LifecycleServiceClient>& lc_client) {
         }
     }
 
-    // deactivate
+    // deactivate 状态转换
+    // 完成后，lifecycle_talker 节点将从 active 状态转回到 inactive 状态
     {
         time_between_state_change.sleep();
         if (false == rclcpp::ok()) {
@@ -160,7 +170,8 @@ void trigger_change(std::shared_ptr<LifecycleServiceClient>& lc_client) {
         }
     }
 
-    // cleanup
+    // cleanup 状态转换
+    // 完成后，lifecycle_talker 节点将从 inactive 状态转回到 unconfigured 状态
     {
         time_between_state_change.sleep();
         if (false == rclcpp::ok()) {
@@ -176,7 +187,8 @@ void trigger_change(std::shared_ptr<LifecycleServiceClient>& lc_client) {
         }
     }
 
-    // shutdown
+    // shutdown 状态转换
+    // 完成后，lifecycle_talker 节点将从 unconfigured 状态转回到 finalized 状态
     {
         time_between_state_change.sleep();
         if (false == rclcpp::ok()) {

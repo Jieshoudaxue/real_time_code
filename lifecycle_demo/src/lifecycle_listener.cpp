@@ -10,10 +10,13 @@
 class LifecycleListener : public rclcpp::Node {
 public:
     explicit LifecycleListener(const std::string& node_name) : Node(node_name) {
+        // 上下游约定的 topic 名为 lifecycle_chatter
         sub_str_ = this->create_subscription<std_msgs::msg::String>(
             "lifecycle_chatter", 10, 
             [this](std_msgs::msg::String::ConstSharedPtr msg) {return this->str_cb(msg);});
 
+        // 上游 lifecycle 节点名为 lifecycle_talker，因此他一定会附赠一个 lifecycle_talker/transition_event topic
+        // 下游订阅这个 topic，可以获取到 lifecycle_talker 节点的状态变化信息
         sub_transition_ = this->create_subscription<lifecycle_msgs::msg::TransitionEvent>(
             "lifecycle_talker/transition_event", 10,
             [this](lifecycle_msgs::msg::TransitionEvent::ConstSharedPtr msg) {return this->trans_cb(msg);});
