@@ -105,7 +105,7 @@ public:
         double derivative = input - last_input_;
 
         // Total output
-        double output = kp_ * error + err_item_sum_ + kd_ * derivative;
+        double output = kp_ * error + err_item_sum_ - kd_ * derivative;
         SetLimits(output);
 
         // Save error to previous error for next iteration

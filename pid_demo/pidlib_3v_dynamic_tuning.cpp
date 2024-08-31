@@ -52,7 +52,7 @@ public:
         double derivative = input - last_input_;
 
         // Total output
-        double output = kp_ * error + err_item_sum_ + kd_ * derivative;
+        double output = kp_ * error + err_item_sum_ - kd_ * derivative;
 
         // Save error to previous error for next iteration
         last_input_ = input;
