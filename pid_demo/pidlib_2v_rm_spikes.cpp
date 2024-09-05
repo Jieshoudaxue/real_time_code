@@ -80,7 +80,7 @@ int main() {
     pid.set_tunings(1, 0.2, 0.02);
     pid.set_sample_time(1000);
 
-    // 假设我们控制的是一个锅炉，我们希望将温度控制在100度，初始温度为20度
+    // 假设我们控制的是一个锅炉，我们希望将温度控制在36度，初始温度为20度
     double setpoint = 36;
     double temperature = 20;
     
