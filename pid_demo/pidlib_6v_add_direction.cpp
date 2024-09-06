@@ -14,13 +14,12 @@ enum PID_DIRECTION: uint8_t {
     PID_REVERSE = 1
 };
 
-// PID Controller Class
 class PIDController {
 public:
     explicit PIDController() {
         InitTime();
     }
-    // Constructor with initial PID coefficients
+
     PIDController(double kp_para, double ki_para, double kd_para) : kp_(kp_para), ki_(ki_para), kd_(kd_para) {
         InitTime();
     }
@@ -81,7 +80,6 @@ public:
         std::cout << "PID mode: " << (in_auto_ ? "Automatic" : "Manual") << std::endl;
     }
 
-    // Calculate and update the output based on setpoint and actual value
     double Compute(double setpoint, double input) {
         if (in_auto_ == false) {
             return last_output_;
@@ -97,18 +95,14 @@ public:
         double error = setpoint - input;
         // printf("error: %f\n", error);
 
-        // err_sum_ term
         err_item_sum_ += ki_ * error;
         SetLimits(err_item_sum_);
 
-        // Derivative term
         double derivative = input - last_input_;
 
-        // Total output
         double output = kp_ * error + err_item_sum_ - kd_ * derivative;
         SetLimits(output);
 
-        // Save error to previous error for next iteration
         last_input_ = input;
         last_time_ = now;
         last_output_ = output;
@@ -116,9 +110,9 @@ public:
     }
 
 private:
-    double kp_; // Proportional gain
-    double ki_; // err_sum_ gain
-    double kd_; // Derivative gain
+    double kp_;
+    double ki_;
+    double kd_;
 
     double last_input_ = 0.0;
     double last_output_ = 0.0;
@@ -134,7 +128,6 @@ private:
 
     PID_DIRECTION pid_direct_ = PID_DIRECT;
 
-    // Utility function to get the elapsed time in seconds since the last call
     uint64_t GetMillis() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::steady_clock::now().time_since_epoch())
@@ -157,22 +150,20 @@ private:
 }   // namespace YCAO_PIDLIB
 
 int main() {
-    YCAO_PIDLIB::PIDController pid; // Create PID controller
-    pid.set_tunings(2.0, 0.1, 0.01, YCAO_PIDLIB::PID_REVERSE); // Set PID coefficients
-    pid.set_sample_time(1000); // Set sample time to 1 second
-    pid.set_output_limits(-100.0, 100.0); // Set output limits
+    YCAO_PIDLIB::PIDController pid;
+    pid.set_tunings(2.0, 0.1, 0.01, YCAO_PIDLIB::PID_REVERSE);
+    pid.set_sample_time(1000);
+    pid.set_output_limits(-100.0, 100.0);
 
     // 假设我们控制的是一个冷库，目标是将温度控制在 -26 度，初始温度是 30 度
-    double setpoint = -26.0; // Desired temperature
-    double temperature = 30.0; // Initial temperature
+    double setpoint = -26.0;
+    double temperature = 30.0;
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    pid.set_auto_mode(YCAO_PIDLIB::PID_MODE_AUTOMATIC, temperature); // Enable automatic mode
+    pid.set_auto_mode(YCAO_PIDLIB::PID_MODE_AUTOMATIC, temperature);
 
-    // Simulate control loop
     for (int i = 0; i < 1000; ++i) {
-        // Calculate control signal
         double control_signal = pid.Compute(setpoint, temperature);
 
         // 模拟压缩机的控制，假设压缩机的热效率是 0.05，环境温度每秒上升 1%
@@ -181,7 +172,6 @@ int main() {
 
         std::cout << "Temperature: " << temperature << std::endl;
 
-        // Sleep for a bit (simulate one second delay)
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 

@@ -7,13 +7,12 @@ enum PID_MODE: uint8_t {
     PID_MODE_AUTOMATIC = 1
 };
 
-// PID Controller Class
 class PIDController {
 public:
     explicit PIDController() {
         InitTime();
     }
-    // Constructor with initial PID coefficients
+
     PIDController(double kp_para, double ki_para, double kd_para) : kp_(kp_para), ki_(ki_para), kd_(kd_para) {
         InitTime();
     }
@@ -64,7 +63,6 @@ public:
         std::cout << "PID mode: " << (in_auto_ ? "Automatic" : "Manual") << std::endl;
     }
 
-    // Calculate and update the output based on setpoint and actual value
     double Compute(double setpoint, double input) {
         if (in_auto_ == false) {
             return last_output_;
@@ -80,18 +78,14 @@ public:
         double error = setpoint - input;
         printf("error: %f\n", error);
 
-        // err_sum_ term
         err_item_sum_ += ki_ * error;
         SetLimits(err_item_sum_);
 
-        // Derivative term
         double derivative = input - last_input_;
 
-        // Total output
         double output = kp_ * error + err_item_sum_ - kd_ * derivative;
         SetLimits(output);
 
-        // Save error to previous error for next iteration
         last_input_ = input;
         last_time_ = now;
         last_output_ = output;
@@ -99,9 +93,9 @@ public:
     }
 
 private:
-    double kp_; // Proportional gain
-    double ki_; // err_sum_ gain
-    double kd_; // Derivative gain
+    double kp_;
+    double ki_;
+    double kd_;
 
     double last_input_ = 0.0;
     double last_output_ = 0.0;
@@ -115,7 +109,6 @@ private:
 
     bool in_auto_ = false;
 
-    // Utility function to get the elapsed time in seconds since the last call
     uint64_t GetMillis() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::steady_clock::now().time_since_epoch())
@@ -135,10 +128,10 @@ private:
 };
 
 int main() {
-    PIDController pid; // Create PID controller
-    pid.set_tunings(1, 0.5, 0.05); // Set PID coefficients
-    pid.set_sample_time(1000); // Set sample time to 1 second
-    pid.set_output_limits(0, 100); // Set output limits
+    PIDController pid;
+    pid.set_tunings(1, 0.5, 0.05);
+    pid.set_sample_time(1000);
+    pid.set_output_limits(0, 100);
 
     // 假设我们控制的是一个锅炉，我们希望将温度控制在100度，初始温度为20度
     double setpoint = 100;
@@ -148,9 +141,7 @@ int main() {
 
     pid.set_auto_mode(PID_MODE_AUTOMATIC, temperature); // Enable automatic mode
 
-    // Simulate control loop
     for (int i = 0; i < 1000; ++i) {
-        // Calculate control signal
         double control_signal = pid.Compute(setpoint, temperature);
 
         // 模拟锅炉加热，假设加热器效率为0.1，温度会损失0.01
@@ -169,7 +160,6 @@ int main() {
             std::cout << "Switch back to automatic mode" << std::endl;
         }
 
-        // Sleep for a bit (simulate one second delay)
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
