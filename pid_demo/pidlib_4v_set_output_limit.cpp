@@ -2,13 +2,11 @@
 #include <chrono>
 #include <thread>
 
-// PID Controller Class
 class PIDController {
 public:
     explicit PIDController() {
         InitTime();
     }
-    // Constructor with initial PID coefficients
     PIDController(double kp_para, double ki_para, double kd_para) : kp_(kp_para), ki_(ki_para), kd_(kd_para) {
         InitTime();
     }
@@ -33,6 +31,8 @@ public:
         }
     }
 
+    // 设置 PID 算法输出的最小值和最大值
+    // 当最小值大于最大值时，视为参数错误，不设置
     void set_output_limits(double min, double max) {
         if (min > max) {
             return;
@@ -40,11 +40,11 @@ public:
         out_min_ = min;
         out_max_ = max;
 
+        // 将缓存值 last_output_ 和 err_item_sum_ 限制在最大值和最小值之间
         SetLimits(last_output_);
         SetLimits(err_item_sum_);
     }
 
-    // Calculate and update the output based on setpoint and actual value
     double Compute(double setpoint, double input) {
         uint64_t now = GetMillis();
         uint64_t time_change = now - last_time_;
@@ -56,18 +56,16 @@ public:
         double error = setpoint - input;
         printf("error: %f\n", error);
 
-        // err_sum_ term
+        // 积分部分计算，并限制在最大值和最小值之间
         err_item_sum_ += ki_ * error;
         SetLimits(err_item_sum_);
 
-        // Derivative term
         double derivative = input - last_input_;
 
-        // Total output
-        double output = kp_ * error + err_item_sum_ + kd_ * derivative;
+        // PID 输出计算，并限制在最大值和最小值之间
+        double output = kp_ * error + err_item_sum_ - kd_ * derivative;
         SetLimits(output);
 
-        // Save error to previous error for next iteration
         last_input_ = input;
         last_time_ = now;
         last_output_ = output;
@@ -75,32 +73,34 @@ public:
     }
 
 private:
-    double kp_; // Proportional gain
-    double ki_; // err_sum_ gain
-    double kd_; // Derivative gain
+    double kp_;
+    double ki_;
+    double kd_;
 
     double last_input_ = 0.0;
     double last_output_ = 0.0;
     double err_item_sum_ = 0.0;
 
+    // PID 算法输出的最小值和最大值
     double out_min_ = 0.0;
     double out_max_ = 0.0;
 
     uint64_t last_time_ = 0UL;
     uint64_t sample_time_ = 1000UL; // 1 second
 
-    // Utility function to get the elapsed time in seconds since the last call
     uint64_t GetMillis() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::steady_clock::now().time_since_epoch())
                          .count();
     }
 
+    // 内部函数，用于重置变量在最大值和最小值之间
     void SetLimits(double& val) {
         if (val > out_max_) {
             printf("val: %f > out_max_: %f\n", val, out_max_);
             val = out_max_;
         } else if (val < out_min_) {
+            printf("val: %f > out_min_: %f\n", val, out_min_);
             val = out_min_;
         } else {
             ; // Do nothing
@@ -109,20 +109,19 @@ private:
 };
 
 int main() {
-    PIDController pid; // Create PID controller
-    pid.set_tunings(1, 0.5, 0.05); // Set PID coefficients
-    pid.set_sample_time(1000); // Set sample time to 1 second
-    pid.set_output_limits(0, 100); // Set output limits
+    PIDController pid;
+    pid.set_tunings(1, 0.5, 0.05);
+    pid.set_sample_time(1000);
+    // 设置 PID 算法输出（加热功率）的最小值为0，最大值为100
+    pid.set_output_limits(0, 100);
 
-    // 假设我们控制的是一个锅炉，我们希望将温度控制在100度，初始温度为20度
-    double setpoint = 100;
-    double temperature = 20;
+    // 假设我们控制的是一个恒温水池，我们希望将温度控制在 90 度，初始温度为20度
+    double setpoint = 90.;
+    double temperature = 20.;
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // Simulate control loop
     for (int i = 0; i < 1000; ++i) {
-        // Calculate control signal
         double control_signal = pid.Compute(setpoint, temperature);
 
         // 模拟锅炉加热，假设加热器效率为0.1，温度会损失0.01
@@ -131,7 +130,6 @@ int main() {
 
         std::cout << "Temperature: " << temperature << std::endl;
 
-        // Sleep for a bit (simulate one second delay)
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 

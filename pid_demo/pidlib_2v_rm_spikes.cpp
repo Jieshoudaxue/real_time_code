@@ -2,13 +2,11 @@
 #include <chrono>
 #include <thread>
 
-// PID Controller Class
 class PIDController {
 public:
     explicit PIDController() {
         InitTime();
     }
-    // Constructor with initial PID coefficients
     PIDController(double kp_para, double ki_para, double kd_para) : kp_(kp_para), ki_(ki_para), kd_(kd_para) {
         InitTime();
     }
@@ -33,7 +31,6 @@ public:
         }
     }
 
-    // Calculate and update the output based on setpoint and actual value
     double Compute(double setpoint, double input) {
         uint64_t now = GetMillis();
         uint64_t time_change = now - last_time_;
@@ -45,16 +42,14 @@ public:
         double error = setpoint - input;
         printf("error: %f\n", error);
 
-        // err_sum_ term
         err_sum_ += error;
 
-        // Derivative term
+        // 由于差值 error 的导数也是算法输入的斜率负数，因此这里直接使用算法输入 input 计算微分部分
         double derivative = input - last_input_;
+        // 由于差值 error 的导数也是算法输入的斜率负数，因此微分部分的符号是负数
+        double output = kp_ * error + ki_ * err_sum_ - kd_ * derivative;
 
-        // Total output
-        double output = kp_ * error + ki_ * err_sum_ + kd_ * derivative;
-
-        // Save error to previous error for next iteration
+        // 由于差值 error 不再参与微分部分的计算，而是直接使用算法输入 input，因此这里不再保存 error，而是保存 input
         last_input_ = input;
         last_time_ = now;
         last_output_ = output;
@@ -62,9 +57,9 @@ public:
     }
 
 private:
-    double kp_; // Proportional gain
-    double ki_; // err_sum_ gain
-    double kd_; // Derivative gain
+    double kp_;
+    double ki_;
+    double kd_;
 
     double last_input_ = 0.0;
     double err_sum_ = 0.0;
@@ -73,7 +68,6 @@ private:
     double last_output_ = 0.0;
     uint64_t sample_time_ = 1000UL; // 1 second
 
-    // Utility function to get the elapsed time in seconds since the last call
     uint64_t GetMillis() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::steady_clock::now().time_since_epoch())
@@ -82,19 +76,17 @@ private:
 };
 
 int main() {
-    PIDController pid; // Create PID controller
-    pid.set_tunings(1, 0.5, 0.05); // Set PID coefficients
-    pid.set_sample_time(1000); // Set sample time to 1 second
+    PIDController pid;
+    pid.set_tunings(1, 0.2, 0.02);
+    pid.set_sample_time(1000);
 
-    // 假设我们控制的是一个锅炉，我们希望将温度控制在100度，初始温度为20度
-    double setpoint = 100;
-    double temperature = 20;
+    // 假设我们控制的是一个恒温水池，我们希望将温度控制在36度，初始温度为20度
+    double setpoint = 36.0;
+    double temperature = 20.0;
     
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // Simulate control loop
     for (int i = 0; i < 1000; ++i) {
-        // Calculate control signal
         double control_signal = pid.Compute(setpoint, temperature);
 
         // 模拟锅炉加热，假设加热器效率为0.1，温度会损失0.01
@@ -103,12 +95,12 @@ int main() {
 
         std::cout << "Temperature: " << temperature << std::endl;
 
+        // 系统运行过程中，突然将目标温度从 36 度调整到 50 度
         if (i == 200) {
-            setpoint = 50; // Change setpoint halfway through
+            setpoint = 50; 
             std::cout << "Setpoint changed to 50" << std::endl;
         }
 
-        // Sleep for a bit (simulate one second delay)
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 

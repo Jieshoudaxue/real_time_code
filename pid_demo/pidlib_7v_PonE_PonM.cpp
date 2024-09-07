@@ -2,10 +2,24 @@
 #include <chrono>
 #include <thread>
 
-// PID 工具模式枚举量：手动模式和自动模式
+namespace YCAO_PIDLIB {
+
 enum PID_MODE: uint8_t {
     PID_MODE_MANUAL = 0,
     PID_MODE_AUTOMATIC = 1
+};
+
+enum PID_DIRECTION: uint8_t {
+    PID_DIRECT = 0,
+    PID_REVERSE = 1
+};
+
+// PID 比例部分的两种模式，一是以测例为基础，二是以差值 error 为基础
+// Proportional on Measurement(PonM)
+// Proportional on Error(PonE)
+enum PID_P_MODE: uint8_t {
+    PID_P_ON_M = 0,
+    PID_P_ON_E = 1
 };
 
 class PIDController {
@@ -22,11 +36,25 @@ public:
         last_time_ = GetMillis();
     }
 
-    void set_tunings(double kp_para, double ki_para, double kd_para) {
+    // 添加一个参数，用于设置 PID 比例部分的模式，默认是PID_P_ON_E
+    void set_tunings(double kp_para, double ki_para, double kd_para, PID_DIRECTION direction = PID_DIRECT, PID_P_MODE p_mode = PID_P_ON_E) {
+        if (kp_para < 0.0 || ki_para < 0.0 || kd_para < 0.0) {
+            return;
+        }
+
+        // 设置 PID 比例部分的模式
+        p_on_e_ = (p_mode == PID_P_ON_E);
+
         double sample_time_in_sec = static_cast<double>(sample_time_) / 1000.0;
         kp_ = kp_para;
         ki_ = ki_para * sample_time_in_sec;
         kd_ = kd_para / sample_time_in_sec;
+
+        if (pid_direct_ == PID_REVERSE) {
+            kp_ = 0 - kp_;
+            ki_ = 0 - ki_;
+            kd_ = 0 - kd_;
+        }
     }
 
     void set_sample_time(uint64_t new_sample_time) {
@@ -46,22 +74,17 @@ public:
         out_max_ = max;
 
         SetLimits(last_output_);
-        SetLimits(err_item_sum_);
+        SetLimits(p_i_item_sum_);
     }
 
-    // 当从手动模式切换到自动模式时，重新初始化 PID 内部状态
-    // 一是更新算法输入值，确保比例和微分部分按照新的状态重新计算
-    // 二是更新算法积分部分的历史值，确保积分部分不会对新的算法输出产生扰动
     void InitInnaState(double input, double output) {
         last_input_ = input;
-        err_item_sum_ = output;
-        SetLimits(err_item_sum_);
+        // 初始化时，将比例和积分两个部分的累加值设置为上一次的输出值
+        p_i_item_sum_ = last_output_;
+        SetLimits(p_i_item_sum_);
     }
 
-    // 设置 PID 控制器的工作模式：手动模式和自动模式
-    // 当从手动模式切换到自动模式时，需要给出新的算法输入值和输出值，用于初始化 PID 内部状态
     void set_auto_mode(PID_MODE mode, double input = 0.0, double output = 0.0) {
-        // 当识别出模式从手动切换到自动时，初始化 PID 内部状态
         bool new_auto = (mode == PID_MODE_AUTOMATIC);
         if (new_auto == true && in_auto_ == false) {
             InitInnaState(input, output);
@@ -71,14 +94,12 @@ public:
     }
 
     double Compute(double setpoint, double input) {
-        // 当 PID 控制器处于手动模式时，直接返回上一次的输出值，外部会使用人工操作值覆盖 PID 算法的输出值
         if (in_auto_ == false) {
             return last_output_;
         }
 
         uint64_t now = GetMillis();
         uint64_t time_change = now - last_time_;
-
         if (time_change < sample_time_) {
             return last_output_;
         }
@@ -86,17 +107,28 @@ public:
         double error = setpoint - input;
         printf("error: %f\n", error);
 
-        err_item_sum_ += ki_ * error;
-        SetLimits(err_item_sum_);
-
         double derivative = input - last_input_;
 
-        double output = kp_ * error + err_item_sum_ - kd_ * derivative;
+        p_i_item_sum_ += ki_ * error;
+        // 当比例部分的模式是 PonM 时，将比例部分与积分部分的累加值合并
+        if (p_on_e_ == false) {
+            p_i_item_sum_ -= kp_ * derivative;
+        }
+        SetLimits(p_i_item_sum_);
+
+        double output = 0.0;
+        if (p_on_e_ == true) {
+            output = kp_ * error + p_i_item_sum_ - kd_ * derivative;
+        } else {
+            // 当比例部分的模式是 PonM 时，P-I-D 将是 PI-D，即比例和积分部分合并 
+            output = p_i_item_sum_ - kd_ * derivative;
+        }
         SetLimits(output);
 
         last_input_ = input;
         last_time_ = now;
         last_output_ = output;
+
         return output;
     }
 
@@ -107,7 +139,6 @@ private:
 
     double last_input_ = 0.0;
     double last_output_ = 0.0;
-    double err_item_sum_ = 0.0;
 
     double out_min_ = 0.0;
     double out_max_ = 0.0;
@@ -115,8 +146,14 @@ private:
     uint64_t last_time_ = 0UL;
     uint64_t sample_time_ = 1000UL; // 1 second
 
-    // PID 内部状态控制量：false 表示手动模式，true 表示自动模式
     bool in_auto_ = false;
+
+    PID_DIRECTION pid_direct_ = PID_DIRECT;
+
+    // 标识 PID 比例部分的模式，true 表示 Proportional on Error(PonE)，false 表示 Proportional on Measurement(PonM)
+    bool p_on_e_ = true;
+    // 比例和积分两个部分的累加值
+    double p_i_item_sum_ = 0.0;
 
     uint64_t GetMillis() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -129,6 +166,7 @@ private:
             printf("val: %f > out_max_: %f\n", val, out_max_);
             val = out_max_;
         } else if (val < out_min_) {
+            printf("val: %f < out_min_: %f\n", val, out_min_);
             val = out_min_;
         } else {
             ; // Do nothing
@@ -136,11 +174,15 @@ private:
     }
 };
 
+}
+
 int main() {
-    PIDController pid;
-    pid.set_tunings(1, 0.2, 0.02);
+    YCAO_PIDLIB::PIDController pid;
+    // 测试 PonM 模式
+    // 这个参数的运行结果就是被控量（水池温度）平滑的上升到设定值，不会出现超调
+    pid.set_tunings(0.5, 0.05, 0.0, YCAO_PIDLIB::PID_DIRECT, YCAO_PIDLIB::PID_P_ON_M);
     pid.set_sample_time(1000);
-    pid.set_output_limits(0, 100);
+    pid.set_output_limits(0.0, 100.0);
 
     // 假设我们控制的是一个恒温水池，我们希望将温度控制在 36 度，初始温度为20度
     double setpoint = 36.0;
@@ -148,39 +190,16 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // 初始化时，设置 PID 控制器为自动模式
-    pid.set_auto_mode(PID_MODE_AUTOMATIC);
+    pid.set_auto_mode(YCAO_PIDLIB::PID_MODE_AUTOMATIC, temperature);
 
     for (int i = 0; i < 1000; ++i) {
-        // 当 i 等于 200 时，将 PID 控制器切换到手动模式
-        if (i == 200) {
-            pid.set_auto_mode(PID_MODE_MANUAL);
-            std::cout << "---->>> Switch to manual mode" << std::endl;
-        }
-
         double control_signal = pid.Compute(setpoint, temperature);
-
-        // 切换到手动模式时，这里模拟人工的操作，人工操作值将覆盖 PID 算法的输出值
-        if (i >= 200 && i < 250) {
-            control_signal = 3;
-        }
-        if (i >= 250 && i <= 300) {
-            control_signal = 4;
-        }
-
-        std::cout << "--> Control signal: " << control_signal << std::endl;
 
         // 模拟锅炉加热，假设加热器效率为0.1，温度会损失0.01
         temperature += control_signal * 0.1;
         temperature *= 0.99;
 
-        std::cout << "<-- Temperature: " << temperature << std::endl;
-
-        // 当 i 等于 300 时，将 PID 控制器重新切换到自动模式
-        if (i == 300) {
-            pid.set_auto_mode(PID_MODE_AUTOMATIC, temperature, control_signal);
-            std::cout << "---->>> Switch back to automatic mode" << std::endl;
-        }
+        std::cout << "Temperature: " << temperature << std::endl;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
