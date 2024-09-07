@@ -2,6 +2,7 @@
 #include <chrono>
 #include <thread>
 
+// 添加命名空间 YCAO_PIDLIB
 namespace YCAO_PIDLIB {
 
 enum PID_MODE: uint8_t {
@@ -9,6 +10,7 @@ enum PID_MODE: uint8_t {
     PID_MODE_AUTOMATIC = 1
 };
 
+// PID 方向枚举量：正向和反向
 enum PID_DIRECTION: uint8_t {
     PID_DIRECT = 0,
     PID_REVERSE = 1
@@ -28,8 +30,9 @@ public:
         last_time_ = GetMillis();
     }
 
+    // 设置 PID 控制器的三个参数，我们要求三个系数都大于等于0，但运行通过方向参数设置正向和反向的控制
     void set_tunings(double kp_para, double ki_para, double kd_para, PID_DIRECTION direction = PID_DIRECT) {
-        if (kp_para < 0 || ki_para < 0 || kd_para < 0) {
+        if (kp_para < 0.0 || ki_para < 0.0 || kd_para < 0.0) {
             return;
         }
 
@@ -38,6 +41,7 @@ public:
         ki_ = ki_para * sample_time_in_sec;
         kd_ = kd_para / sample_time_in_sec;
 
+        // 如果方向参数是反向，那么三个系数都取反，即均为负值
         if (pid_direct_ == PID_REVERSE) {
             kp_ = 0 - kp_;
             ki_ = 0 - ki_;
@@ -65,16 +69,16 @@ public:
         SetLimits(err_item_sum_);
     }
 
-    void InitInnaState(double input) {
+    void InitInnaState(double input, double output) {
         last_input_ = input;
         err_item_sum_ = last_output_;
         SetLimits(err_item_sum_);
     }
 
-    void set_auto_mode(PID_MODE mode, double input = 0.0) {
+    void set_auto_mode(PID_MODE mode, double input = 0.0, double output = 0.0) {
         bool new_auto = (mode == PID_MODE_AUTOMATIC);
         if (new_auto == true && in_auto_ == false) {
-            InitInnaState(input);
+            InitInnaState(input, output);
         }
         in_auto_ = new_auto;
         std::cout << "PID mode: " << (in_auto_ ? "Automatic" : "Manual") << std::endl;
@@ -93,7 +97,7 @@ public:
         }
 
         double error = setpoint - input;
-        // printf("error: %f\n", error);
+        printf("error: %f\n", error);
 
         err_item_sum_ += ki_ * error;
         SetLimits(err_item_sum_);
@@ -147,13 +151,14 @@ private:
     }
 };
 
-}   // namespace YCAO_PIDLIB
+}
 
 int main() {
     YCAO_PIDLIB::PIDController pid;
-    pid.set_tunings(2.0, 0.1, 0.01, YCAO_PIDLIB::PID_REVERSE);
+    // 设置 PID 的三个参数都是负值，即反向控制
+    pid.set_tunings(1.0, 0.2, 0.02, YCAO_PIDLIB::PID_REVERSE);
     pid.set_sample_time(1000);
-    pid.set_output_limits(-100.0, 100.0);
+    pid.set_output_limits(-100.0, 0.0);
 
     // 假设我们控制的是一个冷库，目标是将温度控制在 -26 度，初始温度是 30 度
     double setpoint = -26.0;
@@ -161,14 +166,14 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    pid.set_auto_mode(YCAO_PIDLIB::PID_MODE_AUTOMATIC, temperature);
+    pid.set_auto_mode(YCAO_PIDLIB::PID_MODE_AUTOMATIC);
 
     for (int i = 0; i < 1000; ++i) {
         double control_signal = pid.Compute(setpoint, temperature);
 
-        // 模拟压缩机的控制，假设压缩机的热效率是 0.05，环境温度每秒上升 1%
-        temperature += control_signal * 0.05;
-        temperature *= 1.01;
+        // 模拟压缩机的控制，假设压缩机的热效率是 0.1，温度会损失 0.01
+        temperature += control_signal * 0.1;
+        temperature *= 0.99;
 
         std::cout << "Temperature: " << temperature << std::endl;
 

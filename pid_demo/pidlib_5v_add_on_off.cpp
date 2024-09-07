@@ -2,6 +2,7 @@
 #include <chrono>
 #include <thread>
 
+// PID 工具模式枚举量：手动模式和自动模式
 enum PID_MODE: uint8_t {
     PID_MODE_MANUAL = 0,
     PID_MODE_AUTOMATIC = 1
@@ -48,22 +49,29 @@ public:
         SetLimits(err_item_sum_);
     }
 
-    void InitInnaState(double input) {
+    // 当从手动模式切换到自动模式时，重新初始化 PID 内部状态
+    // 一是更新算法输入值，确保比例和微分部分按照新的状态重新计算
+    // 二是更新算法积分部分的历史值，确保积分部分不会对新的算法输出产生扰动
+    void InitInnaState(double input, double output) {
         last_input_ = input;
-        err_item_sum_ = last_output_;
+        err_item_sum_ = output;
         SetLimits(err_item_sum_);
     }
 
-    void set_auto_mode(PID_MODE mode, double input = 0.0) {
+    // 设置 PID 控制器的工作模式：手动模式和自动模式
+    // 当从手动模式切换到自动模式时，需要给出新的算法输入值和输出值，用于初始化 PID 内部状态
+    void set_auto_mode(PID_MODE mode, double input = 0.0, double output = 0.0) {
+        // 当识别出模式从手动切换到自动时，初始化 PID 内部状态
         bool new_auto = (mode == PID_MODE_AUTOMATIC);
         if (new_auto == true && in_auto_ == false) {
-            InitInnaState(input);
+            InitInnaState(input, output);
         }
         in_auto_ = new_auto;
         std::cout << "PID mode: " << (in_auto_ ? "Automatic" : "Manual") << std::endl;
     }
 
     double Compute(double setpoint, double input) {
+        // 当 PID 控制器处于手动模式时，直接返回上一次的输出值，外部会使用人工操作值覆盖 PID 算法的输出值
         if (in_auto_ == false) {
             return last_output_;
         }
@@ -107,6 +115,7 @@ private:
     uint64_t last_time_ = 0UL;
     uint64_t sample_time_ = 1000UL; // 1 second
 
+    // PID 内部状态控制量：false 表示手动模式，true 表示自动模式
     bool in_auto_ = false;
 
     uint64_t GetMillis() {
@@ -129,35 +138,48 @@ private:
 
 int main() {
     PIDController pid;
-    pid.set_tunings(1, 0.5, 0.05);
+    pid.set_tunings(1, 0.2, 0.02);
     pid.set_sample_time(1000);
     pid.set_output_limits(0, 100);
 
-    // 假设我们控制的是一个锅炉，我们希望将温度控制在100度，初始温度为20度
-    double setpoint = 100;
-    double temperature = 20;
+    // 假设我们控制的是一个恒温水池，我们希望将温度控制在 36 度，初始温度为20度
+    double setpoint = 36.0;
+    double temperature = 20.0;
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    pid.set_auto_mode(PID_MODE_AUTOMATIC, temperature); // Enable automatic mode
+    // 初始化时，设置 PID 控制器为自动模式
+    pid.set_auto_mode(PID_MODE_AUTOMATIC);
 
     for (int i = 0; i < 1000; ++i) {
+        // 当 i 等于 200 时，将 PID 控制器切换到手动模式
+        if (i == 200) {
+            pid.set_auto_mode(PID_MODE_MANUAL);
+            std::cout << "---->>> Switch to manual mode" << std::endl;
+        }
+
         double control_signal = pid.Compute(setpoint, temperature);
+
+        // 切换到手动模式时，这里模拟人工的操作，人工操作值将覆盖 PID 算法的输出值
+        if (i >= 200 && i < 250) {
+            control_signal = 3;
+        }
+        if (i >= 250 && i <= 300) {
+            control_signal = 4;
+        }
+
+        std::cout << "--> Control signal: " << control_signal << std::endl;
 
         // 模拟锅炉加热，假设加热器效率为0.1，温度会损失0.01
         temperature += control_signal * 0.1;
         temperature *= 0.99;
 
-        std::cout << "Temperature: " << temperature << std::endl;
+        std::cout << "<-- Temperature: " << temperature << std::endl;
 
-        if (i == 200) {
-            pid.set_auto_mode(PID_MODE_MANUAL); // Switch to manual mode
-            std::cout << "Switch to manual mode" << std::endl;
-        }
-
+        // 当 i 等于 300 时，将 PID 控制器重新切换到自动模式
         if (i == 300) {
-            pid.set_auto_mode(PID_MODE_AUTOMATIC, temperature); // Switch back to automatic mode
-            std::cout << "Switch back to automatic mode" << std::endl;
+            pid.set_auto_mode(PID_MODE_AUTOMATIC, temperature, control_signal);
+            std::cout << "---->>> Switch back to automatic mode" << std::endl;
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));

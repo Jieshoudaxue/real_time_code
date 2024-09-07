@@ -115,9 +115,9 @@ int main() {
     // 设置 PID 算法输出（加热功率）的最小值为0，最大值为100
     pid.set_output_limits(0, 100);
 
-    // 假设我们控制的是一个锅炉，我们希望将温度控制在 90 度，初始温度为20度
-    double setpoint = 90;
-    double temperature = 20;
+    // 假设我们控制的是一个恒温水池，我们希望将温度控制在 90 度，初始温度为20度
+    double setpoint = 90.;
+    double temperature = 20.;
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 

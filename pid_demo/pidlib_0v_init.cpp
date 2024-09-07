@@ -70,9 +70,9 @@ int main() {
     PIDController pid;
     pid.set_tunings(10, 0.01, 0.01);
 
-    // 假设我们控制的是一个锅炉，我们希望将温度控制在36度，初始温度为20度
-    double setpoint = 36;
-    double temperature = 20;
+    // 假设我们控制的是一个恒温水池，我们希望将温度控制在36度，初始温度为20度
+    double setpoint = 36.0;
+    double temperature = 20.0;
 
     // 模拟系统启动延迟
     std::this_thread::sleep_for(std::chrono::seconds(1));
