@@ -10,9 +10,12 @@ find_package(ament_cmake REQUIRED)
 find_package(lifecycle_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(pendulum_msg REQUIRED)
+
+include_directories(include)
 
 add_executable(pendulum_driver_node src/pendulum_driver_node.cpp)
-ament_target_dependencies(pendulum_driver_node lifecycle_msgs rclcpp rclcpp_lifecycle)
+ament_target_dependencies(pendulum_driver_node lifecycle_msgs rclcpp rclcpp_lifecycle pendulum_msg)
 
 install(TARGETS
   pendulum_driver_node
