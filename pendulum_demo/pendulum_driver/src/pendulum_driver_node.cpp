@@ -164,7 +164,107 @@ void PendulumDriver::reset() {
 }
 
 // PendulumDriverNode
+PendulumDriverNode::PendulumDriverNode(const std::string & node_name, const rclcpp::NodeOptions & options) 
+    : LifecycleNode(node_name, options),
+    state_topic_name_(declare_parameter<std::string>("state_topic_name", "pendulum_joint_states")), 
+    command_topic_name_(declare_parameter<std::string>("command_topic_name", "joint_command")),
+    disturbance_topic_name_(declare_parameter<std::string>("disturbance_topic_name", "disturbance")),
+    cart_base_joint_name_(declare_parameter<std::string>("cart_base_joint_name", "cart_base_joint")),
+    pole_joint_name_(declare_parameter<std::string>("pole_joint_name", "pole_joint")),
+    state_publish_period_(std::chrono::microseconds{
+        declare_parameter<std::uint16_t>("state_publish_period_us", 1000U)}),
+    enable_topic_stats_(declare_parameter<bool>("enable_topic_stats", false)),
+    topic_stats_topic_name_(declare_parameter<std::string>("topic_stats_topic_name", "driver_stats")),
+    topic_stats_publish_period_(std::chrono::milliseconds{
+        declare_parameter<std::uint16_t>("topic_stats_publish_period_ms", 1000U)}),
+    deadline_duration_(std::chrono::milliseconds{
+        declare_parameter<std::uint16_t>("deadline_duration_ms", 0U)}),
+    pdriver_(PendulumConfig(
+        declare_parameter<double>("driver.pendulum_mass", 1.0),
+        declare_parameter<double>("driver.cart_mass", 5.0),
+        declare_parameter<double>("driver.pendulum_length", 2.0),
+        declare_parameter<double>("driver.damping_coefficient", 20.0),
+        declare_parameter<double>("driver.gravity", -9.8),
+        declare_parameter<double>("driver.max_cart_force", 1000.0),
+        declare_parameter<double>("driver.noise_level", 1.0),
+        std::chrono::microseconds{state_publish_period_})),
+    num_missed_deadlines_pub_{0U},
+    num_missed_deadlines_sub_{0U} {
 
+    // init state message
+    joint_state_msg_.pole_angle = 0.0;
+    joint_state_msg_.pole_velocity = 0.0;
+    joint_state_msg_.cart_position = 0.0;
+    joint_state_msg_.cart_velocity = 0.0;
+    joint_state_msg_.cart_force = 0.0;
+
+    // create state publisher
+    rclcpp::PublisherOptions state_pub_options;
+    state_pub_options.event_callbacks.deadline_callback = 
+        [this](rmw_offered_deadline_missed_status_t &) -> void 
+        {
+            num_missed_deadlines_pub_++;
+        };
+    joint_state_pub_ = this->create_publisher<pendulum_msg::msg::JointState>(
+        state_topic_name_,
+        rclcpp::QoS(10).deadline(deadline_duration_),
+        state_pub_options);
+
+    // create command subscription
+    auto on_force_received = [this](pendulum_msg::msg::ForceCmd::SharedPtr msg) {
+        pdriver_.set_controller_cart_force(msg->force);
+    };
+
+    rclcpp::SubscriptionOptions force_subscription_options;
+    force_subscription_options.event_callbacks.deadline_callback = 
+        [this](rclcpp::QOSDeadlineRequestedInfo &) -> void 
+        {
+            num_missed_deadlines_sub_++;
+        };
+    if (enable_topic_stats_) {
+        force_subscription_options.topic_stats_options.state = rclcpp::TopicStatisticsState::Enable;
+        force_subscription_options.topic_stats_options.publish_topic = topic_stats_topic_name_;
+        force_subscription_options.topic_stats_options.publish_period = topic_stats_publish_period_;
+    }
+
+    using rclcpp::strategies::message_pool_memory_strategy::MessagePoolMemoryStrategy;
+    auto force_msg_strategy = std::make_shared<MessagePoolMemoryStrategy<pendulum_msg::msg::ForceCmd, 1>>();
+
+    force_cmd_sub_ = this->create_subscription<pendulum_msg::msg::ForceCmd>(
+        command_topic_name_,
+        rclcpp::QoS(10).deadline(deadline_duration_),
+        on_force_received,
+        force_subscription_options,
+        force_msg_strategy
+    );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // std::shared_ptr<rclcpp::Subscription<pendulum_msg::msg::ForceCmd>> force_cmd_sub_;
+    // std::shared_ptr<rclcpp::Subscription<pendulum_msg::msg::ForceCmd>> disturbance_sub_;
+    // std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<pendulum_msg::msg::JointState>> joint_state_pub_;
+
+    // rclcpp::TimerBase::SharedPtr joint_state_timer_;
+    // rclcpp::TimerBase::SharedPtr update_driver_timer_;
+    // pendulum_msg::msg::JointState joint_state_msg_;
+
+// float64 force
+    
+    RCLCPP_INFO(this->get_logger(), "PendulumDriverNode constructor");
+}
 
 
 
@@ -179,7 +279,7 @@ int main(int argc, char* argv[]) {
     rclcpp::executors::SingleThreadedExecutor exe;
 
     using pendulum_demo::pendulum_driver::PendulumDriverNode;
-    auto driver_node = std::make_shared<PendulumDriverNode>("pendulum_driver");
+    auto driver_node = std::make_shared<PendulumDriverNode>("pendulum_driver_node");
 
     exe.add_node(driver_node->get_node_base_interface());
 

@@ -11,6 +11,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "rcppmath/clamp.hpp"
+#include "rclcpp/strategies/message_pool_memory_strategy.hpp"
+#include "rclcpp/strategies/allocator_memory_strategy.hpp"
 
 #include "pendulum_msg/msg/joint_state.hpp"
 #include "pendulum_msg/msg/force_cmd.hpp"
