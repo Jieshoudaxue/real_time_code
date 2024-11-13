@@ -195,16 +195,6 @@ public:
                                 const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
-    void init_state_message();
-
-    void create_command_subscription();
-
-    void create_disturbance_subscription();
-
-    void create_state_publisher();
-
-    void log_driver_state();
-
     rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_configure(
         const rclcpp_lifecycle::State& pre_state) override;
 
@@ -235,16 +225,16 @@ private:
 
     PendulumDriver pdriver_;
 
-    std::shared_ptr<rclcpp::Subscription<pendulum_msg::msg::ForceCmd>> force_cmd_sub_;
-    std::shared_ptr<rclcpp::Subscription<pendulum_msg::msg::ForceCmd>> disturbance_sub_;
-    std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<pendulum_msg::msg::JointState>> joint_state_pub_;
-
-    rclcpp::TimerBase::SharedPtr joint_state_timer_;
-    rclcpp::TimerBase::SharedPtr update_driver_timer_;
-    pendulum_msg::msg::JointState joint_state_msg_;
-
     uint32_t num_missed_deadlines_pub_;
     uint32_t num_missed_deadlines_sub_;
+
+    pendulum_msg::msg::JointState joint_state_msg_;
+
+    std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<pendulum_msg::msg::JointState>> joint_state_pub_;
+    std::shared_ptr<rclcpp::Subscription<pendulum_msg::msg::ForceCmd>> force_cmd_sub_;
+    std::shared_ptr<rclcpp::Subscription<pendulum_msg::msg::ForceCmd>> disturbance_sub_;
+    
+    rclcpp::TimerBase::SharedPtr joint_state_timer_;
 };
 
 

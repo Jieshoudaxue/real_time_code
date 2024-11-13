@@ -238,34 +238,97 @@ PendulumDriverNode::PendulumDriverNode(const std::string & node_name, const rclc
         force_msg_strategy
     );
 
+    // create disturbance subscription
+    disturbance_sub_ = this->create_subscription<pendulum_msg::msg::ForceCmd>(
+        disturbance_topic_name_,
+        rclcpp::QoS(10),
+        [this](pendulum_msg::msg::ForceCmd::SharedPtr msg) {
+            pdriver_.set_disturbance_force(msg->force);
+        }
+    );
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // std::shared_ptr<rclcpp::Subscription<pendulum_msg::msg::ForceCmd>> force_cmd_sub_;
-    // std::shared_ptr<rclcpp::Subscription<pendulum_msg::msg::ForceCmd>> disturbance_sub_;
-    // std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<pendulum_msg::msg::JointState>> joint_state_pub_;
-
-    // rclcpp::TimerBase::SharedPtr joint_state_timer_;
-    // rclcpp::TimerBase::SharedPtr update_driver_timer_;
-    // pendulum_msg::msg::JointState joint_state_msg_;
-
-// float64 force
+    // create state timer callback
+    joint_state_timer_ = this->create_wall_timer(state_publish_period_, [this]() {
+        pdriver_.update();
+        const auto state = pdriver_.get_state();
+        joint_state_msg_.cart_position = state.cart_position;
+        joint_state_msg_.cart_velocity = state.cart_velocity;
+        joint_state_msg_.cart_force = state.cart_force;
+        joint_state_msg_.pole_angle = state.pole_angle;
+        joint_state_msg_.pole_velocity = state.pole_velocity;
+        joint_state_pub_->publish(joint_state_msg_);
+    });
+    // cancel immediately to prevent triggering it in this state
+    joint_state_timer_->cancel();
     
     RCLCPP_INFO(this->get_logger(), "PendulumDriverNode constructor");
 }
 
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn 
+PendulumDriverNode::on_configure(const rclcpp_lifecycle::State& pre_state) {
+    // reset the driver
+    pdriver_.reset();
+
+    RCLCPP_INFO(this->get_logger(), 
+        "LifecycleTalker on_configure is called for initial, pre state is %s", pre_state.label().c_str());
+
+    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+}
+
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn 
+PendulumDriverNode::on_activate(const rclcpp_lifecycle::State& pre_state) {
+
+    joint_state_pub_->on_activate();
+    joint_state_timer_->reset();
+
+    RCLCPP_INFO(this->get_logger(), 
+        "LifecycleTalker on_activate is called, pre state is %s", pre_state.label().c_str());
+
+    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+}
+
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn 
+PendulumDriverNode::on_deactivate(const rclcpp_lifecycle::State& pre_state) {
+
+    joint_state_timer_->cancel();
+    joint_state_pub_->on_deactivate();
+
+    // log the driver state
+    const auto state = pdriver_.get_state();
+    const auto disturbance_force = pdriver_.get_disturbance_force();
+    const double controller_force_command = pdriver_.get_controller_cart_force();
+    RCLCPP_INFO(this->get_logger(), "Cart position = %lf", state.cart_position);
+    RCLCPP_INFO(this->get_logger(), "Cart velocity = %lf", state.cart_velocity);
+    RCLCPP_INFO(this->get_logger(), "Pole angle = %lf", state.pole_angle);
+    RCLCPP_INFO(this->get_logger(), "Pole angular velocity = %lf", state.pole_velocity);
+    RCLCPP_INFO(this->get_logger(), "Controller force command = %lf", controller_force_command);
+    RCLCPP_INFO(this->get_logger(), "Disturbance force = %lf", disturbance_force);
+    RCLCPP_INFO(this->get_logger(), "Publisher missed deadlines = %u", num_missed_deadlines_pub_);
+    RCLCPP_INFO(this->get_logger(), "Subscription missed deadlines = %u", num_missed_deadlines_sub_);
+
+    RCLCPP_INFO(this->get_logger(), 
+        "LifecycleTalker on_deactivate is called, pre state is %s", pre_state.label().c_str());
+
+    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+}
+
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn 
+PendulumDriverNode::on_cleanup(const rclcpp_lifecycle::State& pre_state) {
+
+    RCLCPP_INFO(this->get_logger(), 
+        "LifecycleTalker on_cleanup is called, pre state is %s", pre_state.label().c_str());
+
+    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+}
+
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+PendulumDriverNode::on_shutdown(const rclcpp_lifecycle::State& pre_state) {
+
+    RCLCPP_INFO(this->get_logger(), 
+        "LifecycleTalker on_shutdown is called, pre state is %s", pre_state.label().c_str());
+
+    return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+}
 
 
 
