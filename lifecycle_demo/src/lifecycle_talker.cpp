@@ -53,6 +53,9 @@ public:
     // 这是 activating 过渡状态的回调函数，完成后将从 inactive 进入 active 状态
     rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_activate(
         const rclcpp_lifecycle::State& pre_state) {
+        // 节点只有处于 active 状态时，才会发送 topic，核心在这句
+        // 这里调用父类 LifecycleNode 的 on_activate 方法，内部调用了 pub_str_->on_activate()
+        // 开发者也可以不调用这句，自己调用 pub_str_->on_activate()
         LifecycleNode::on_activate(pre_state);
 
         RCLCPP_INFO(this->get_logger(), 
@@ -66,6 +69,8 @@ public:
     // 这是 deactivating 过渡状态的回调函数，完成后将从 active 返回 inactive 状态
     rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn on_deactivate(
         const rclcpp_lifecycle::State& pre_state) {
+        // 这里调用父类 LifecycleNode 的 on_deactivate 方法，内部调用了 pub_str_->on_deactivate()
+        // 开发者也可以不调用这句，自己调用 pub_str_->on_deactivate()
         LifecycleNode::on_deactivate(pre_state);
 
         RCLCPP_INFO(this->get_logger(), 
