@@ -258,7 +258,7 @@ PendulumDriverNode::PendulumDriverNode(const std::string & node_name, const rclc
         joint_state_msg_.pole_velocity = state.pole_velocity;
         joint_state_pub_->publish(joint_state_msg_);
     });
-    // cancel immediately to prevent triggering it in this state
+    // 创建完状态 topic 发送计时器后，立即取消，将计时器启动交给 LifecycleNode 的状态机
     joint_state_timer_->cancel();
     
     RCLCPP_INFO(this->get_logger(), "PendulumDriverNode constructor");
@@ -266,7 +266,7 @@ PendulumDriverNode::PendulumDriverNode(const std::string & node_name, const rclc
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn 
 PendulumDriverNode::on_configure(const rclcpp_lifecycle::State& pre_state) {
-    // reset the driver
+    // 初始化阶段，重置 PendulumDriver
     pdriver_.reset();
 
     RCLCPP_INFO(this->get_logger(), 
@@ -277,8 +277,9 @@ PendulumDriverNode::on_configure(const rclcpp_lifecycle::State& pre_state) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn 
 PendulumDriverNode::on_activate(const rclcpp_lifecycle::State& pre_state) {
-
+    // 告知下游，上游发布节点的 pub 已经激活
     joint_state_pub_->on_activate();
+    // 启动状态 topic 发送计时器
     joint_state_timer_->reset();
 
     RCLCPP_INFO(this->get_logger(), 
@@ -289,11 +290,12 @@ PendulumDriverNode::on_activate(const rclcpp_lifecycle::State& pre_state) {
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn 
 PendulumDriverNode::on_deactivate(const rclcpp_lifecycle::State& pre_state) {
-
+    // 当节点停止活跃时，取消计时器，停止发送状态 topic
     joint_state_timer_->cancel();
+    // 告知下游，上游节点的 pub 已经关闭
     joint_state_pub_->on_deactivate();
 
-    // log the driver state
+    // 当节点关闭时，打印此时倒立摆的状态
     const auto state = pdriver_.get_state();
     const auto disturbance_force = pdriver_.get_disturbance_force();
     const double controller_force_command = pdriver_.get_controller_cart_force();
