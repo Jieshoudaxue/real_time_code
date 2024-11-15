@@ -31,9 +31,9 @@ struct PendulumState {
     double cart_force = 0.0;
 };
 
-class PendulumConfig {
+class DriverConfig {
 public:
-    PendulumConfig(
+    DriverConfig(
         double pendulum_mass,
         double cart_mass,
         double pendulum_length,
@@ -146,7 +146,7 @@ private:
 
 class PendulumDriver {
 public:
-    explicit PendulumDriver(const PendulumConfig & config);
+    explicit PendulumDriver(const DriverConfig & config);
 
     void set_state(double cart_pos, double cart_vel, double pole_pos, double pole_vel);
 
@@ -165,7 +165,7 @@ public:
     void reset();
 
 private:
-    const PendulumConfig pendulum_config_;
+    const DriverConfig pendulum_config_;
     double time_step_;  // seconds
     PendulumState state_;
 

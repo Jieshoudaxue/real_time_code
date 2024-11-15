@@ -9,8 +9,8 @@
 namespace pendulum_demo {
 namespace pendulum_driver {
 
-// PendulumConfig
-PendulumConfig::PendulumConfig(
+// DriverConfig
+DriverConfig::DriverConfig(
         double pendulum_mass,
         double cart_mass,
         double pendulum_length,
@@ -28,41 +28,41 @@ PendulumConfig::PendulumConfig(
     noise_level_(noise_level),
     physics_update_period_(physics_update_period) {}
 
-double PendulumConfig::get_pendulum_mass() const {
+double DriverConfig::get_pendulum_mass() const {
     return pendulum_mass_;
 }
 
-double PendulumConfig::get_cart_mass() const {
+double DriverConfig::get_cart_mass() const {
     return cart_mass_;
 }
 
-double PendulumConfig::get_pendulum_length() const {
+double DriverConfig::get_pendulum_length() const {
     return pendulum_length_;
 }
 
-double PendulumConfig::get_damping_coefficient() const {
+double DriverConfig::get_damping_coefficient() const {
     return damping_coefficient_;
 }
 
-double PendulumConfig::get_gravity() const {
+double DriverConfig::get_gravity() const {
     return gravity_;
 }
 
-double PendulumConfig::get_max_cart_force() const {
+double DriverConfig::get_max_cart_force() const {
     return max_cart_force_;
 }
 
-double PendulumConfig::get_noise_level() const {
+double DriverConfig::get_noise_level() const {
     return noise_level_;
 }
 
-std::chrono::microseconds PendulumConfig::get_physics_update_period() const {
+std::chrono::microseconds DriverConfig::get_physics_update_period() const {
     return physics_update_period_;
 }
 
 
 // PendulumDriver
-PendulumDriver::PendulumDriver(const PendulumConfig & config) :
+PendulumDriver::PendulumDriver(const DriverConfig & config) :
     pendulum_config_(config),
     ode_solver_(STATE_DIMENSION),
     X_{0.0, 0.0, M_PI, 0.0},
@@ -179,7 +179,7 @@ PendulumDriverNode::PendulumDriverNode(const std::string & node_name, const rclc
         declare_parameter<std::uint16_t>("topic_stats_publish_period_ms", 1000U)}),
     deadline_duration_(std::chrono::milliseconds{
         declare_parameter<std::uint16_t>("deadline_duration_ms", 0U)}),
-    pdriver_(PendulumConfig(
+    pdriver_(DriverConfig(
         declare_parameter<double>("driver.pendulum_mass", 1.0),
         declare_parameter<double>("driver.cart_mass", 5.0),
         declare_parameter<double>("driver.pendulum_length", 2.0),
