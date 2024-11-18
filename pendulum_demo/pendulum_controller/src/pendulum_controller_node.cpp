@@ -160,9 +160,9 @@ int main(int argc, char* argv[]) {
     rclcpp::executors::SingleThreadedExecutor exe;
 
     using pendulum_demo::pendulum_controller::PendulumControllerNode;
-    auto driver_node = std::make_shared<PendulumControllerNode>("pendulum_controller_node");
+    auto controller_node = std::make_shared<PendulumControllerNode>("pendulum_controller_node");
 
-    exe.add_node(driver_node->get_node_base_interface());
+    exe.add_node(controller_node->get_node_base_interface());
 
     exe.spin();
 
